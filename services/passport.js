@@ -3,6 +3,15 @@ const GoogleStrategy = require("passport-google-oauth20").Strategy;
 
 const User = require("../models/User");
 
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+
+passport.deserializeUser(async (id, done) => {
+  const user = await User.findById(id);
+  done(null, user);
+});
+
 passport.use(
   new GoogleStrategy(
     {
@@ -10,8 +19,18 @@ passport.use(
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL: "/auth/google/callback"
     },
-    accessToken => {
-      console.log(accessToken);
+    async (accessToken, refreshToken, profile, done) => {
+      // Check user existence on the database
+      const existingUser = await User.findOne({ googleID: profile.id });
+      const userExists = Boolean(existingUser);
+
+      if (userExists) {
+        return done(null, existingUser);
+      }
+
+      // Create new user on the database
+      const user = await new User({ googleID: profile.id }).save();
+      return done(null, user);
     }
   )
 );
